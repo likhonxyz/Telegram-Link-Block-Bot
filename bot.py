@@ -15,9 +15,12 @@ async def delete_links(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     text = update.message.text or ""
 
-    # Get admin list for the group
-    chat_administrators = await update.effective_chat.get_administrators()
-    admin_ids = [admin.user.id for admin in chat_administrators]
+    # Check if it's a group or supergroup
+    if update.effective_chat.type in ["group", "supergroup"]:
+        chat_administrators = await update.effective_chat.get_administrators()
+        admin_ids = [admin.user.id for admin in chat_administrators]
+    else:
+        admin_ids = []
 
     # Get no-exempt list for this group
     no_exempt_list = group_no_exempt_admin_ids.get(chat_id, [])
