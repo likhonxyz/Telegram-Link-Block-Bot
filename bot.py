@@ -1,8 +1,13 @@
 import os
 import re
+import logging
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters
 from telegram import Update
 from telegram.ext import ContextTypes
+
+# Enable logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Global dictionary to hold no-exempt list per group
 group_no_exempt_admin_ids = {}
@@ -14,7 +19,6 @@ async def delete_links(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user = update.effective_user
 
-    # Get admin list for the group
     chat_administrators = await update.effective_chat.get_administrators()
     admin_ids = [admin.user.id for admin in chat_administrators]
 
@@ -28,7 +32,7 @@ async def delete_links(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.delete()
             await update.message.reply_text("❌ Links are not allowed!")
         except Exception as e:
-            print(f"Error deleting message: {e}")
+            logger.warning(f"Error deleting message: {e}")
 
 async def add_no_exempt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
@@ -84,16 +88,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 TOKEN = os.environ.get("TOKEN")
 
+if not TOKEN:
+    raise ValueError("❌ TOKEN environment variable not set!")
+
 app = ApplicationBuilder().token(TOKEN).build()
 
-# Group message handler for link deletion
-app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), delete_links))
-
-# Private commands
+# ✅ First, command handlers (these will capture command messages first)
 app.add_handler(CommandHandler("addnoexempt", add_no_exempt))
 app.add_handler(CommandHandler("removenoexempt", remove_no_exempt))
 app.add_handler(CommandHandler("listnoexempt", list_no_exempt))
 app.add_handler(CommandHandler("start", start))
 
-print("✅ Bot is running...")
+# ✅ Then, all text messages including commands (if not matched above)
+app.add_handler(MessageHandler(filters.TEXT, delete_links))
+
+logger.info("✅ Bot is running...")
 app.run_polling()
