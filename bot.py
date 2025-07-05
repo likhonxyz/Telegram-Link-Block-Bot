@@ -13,24 +13,17 @@ link_pattern = re.compile(r"(http[s]?://|t\.me/)", re.IGNORECASE)
 async def delete_links(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user = update.effective_user
-    text = update.message.text or ""
 
-    # Check if it's a group or supergroup
-    if update.effective_chat.type in ["group", "supergroup"]:
-        chat_administrators = await update.effective_chat.get_administrators()
-        admin_ids = [admin.user.id for admin in chat_administrators]
-    else:
-        admin_ids = []
+    # Get admin list for the group
+    chat_administrators = await update.effective_chat.get_administrators()
+    admin_ids = [admin.user.id for admin in chat_administrators]
 
-    # Get no-exempt list for this group
     no_exempt_list = group_no_exempt_admin_ids.get(chat_id, [])
 
-    # If user is admin but not in no-exempt list, allow
     if user.id in admin_ids and user.id not in no_exempt_list:
         return
 
-    # Check for link
-    if link_pattern.search(text):
+    if update.message and link_pattern.search(update.message.text or ""):
         try:
             await update.message.delete()
             await update.message.reply_text("❌ Links are not allowed!")
@@ -86,30 +79,20 @@ async def list_no_exempt(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except ValueError:
         await update.message.reply_text("❌ Invalid group ID.")
 
-async def get_group_id(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    await update.message.reply_text(f"✅ This group ID is: `{chat_id}`", parse_mode="Markdown")
-
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "✅ Bot is running!\n\n"
-        "Use these commands:\n"
-        "/addnoexempt <group_id> <user_id>\n"
-        "/removenoexempt <group_id> <user_id>\n"
-        "/listnoexempt <group_id>\n"
-        "/getgroupid (send in group to get ID)\n\n"
-        "⚠️ Use in private chat with correct group IDs."
-    )
+    await update.message.reply_text("✅ Bot is running and ready!\nYou can control me via private chat using group IDs.")
 
 TOKEN = os.environ.get("TOKEN")
 
 app = ApplicationBuilder().token(TOKEN).build()
 
-app.add_handler(MessageHandler(filters.TEXT, delete_links))
+# Group message handler for link deletion
+app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), delete_links))
+
+# Private commands
 app.add_handler(CommandHandler("addnoexempt", add_no_exempt))
 app.add_handler(CommandHandler("removenoexempt", remove_no_exempt))
 app.add_handler(CommandHandler("listnoexempt", list_no_exempt))
-app.add_handler(CommandHandler("getgroupid", get_group_id))
 app.add_handler(CommandHandler("start", start))
 
 print("✅ Bot is running...")
