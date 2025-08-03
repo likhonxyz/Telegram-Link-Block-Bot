@@ -1,13 +1,14 @@
 import re
+import os
 import logging
 from telegram.ext import ApplicationBuilder, MessageHandler, CommandHandler, filters
 from telegram import Update
 from telegram.ext import ContextTypes
 
-# Token সরাসরি এখানে বসানো হয়েছে
-TOKEN = "7945756761:AAH9rgtEx3eOfZWGto-JD1A5DjM1MHOlflA"
+# BOT token from fly.io secret
+TOKEN = os.getenv("BOT_TOKEN")
 
-# Logging সেটআপ
+# Logging setup
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,7 @@ async def delete_links(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     no_exempt_list = group_no_exempt_admin_ids.get(chat_id, [])
 
-    # Admin ra link dite parbe normally, anonymous admin ra parbe na
-    # Anonymous admin detection: user.is_anonymous (True hole anonymous admin)
+    # Allow normal admins but block anonymous and no-exempt admins
     if user.id in admin_ids and user.id not in no_exempt_list and not user.is_anonymous:
         return
 
@@ -88,7 +88,7 @@ async def list_no_exempt(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("❌ Invalid group ID.")
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("✅ Bot is running and ready!\nYou can control me via private chat using group IDs.")
+    await update.message.reply_text("✅ Bot is running and ready!\nUse commands to manage no-exempt admins.")
 
 app = ApplicationBuilder().token(TOKEN).build()
 

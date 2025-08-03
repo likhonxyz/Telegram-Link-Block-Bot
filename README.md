@@ -1,26 +1,36 @@
-# Telegram No-Link Filter Bot
+# Telegram No-Link Filter Bot (Fly.io Ready)
 
-This bot deletes messages containing links from users who are not exempt in a group.
-It also supports commands to manage "no-exempt" admin lists per group.
+A Telegram bot that deletes link messages for non-exempt users/admins. Anonymous admins are always restricted.
 
 ## 🔧 Commands
+- `/addnoexempt <group_id> <user_id>`
+- `/removenoexempt <group_id> <user_id>`
+- `/listnoexempt <group_id>`
+- `/start`
 
-- `/addnoexempt <group_id> <user_id>` - Add a user to the no-exempt list for a group
-- `/removenoexempt <group_id> <user_id>` - Remove a user from no-exempt list
-- `/listnoexempt <group_id>` - List users in the no-exempt list
-- `/start` - Check bot is running
+## 🚀 Deploy to Fly.io
 
-## ▶️ How to Run
-1. Replace your bot token in `bot.py`
-2. Install dependencies:
+1. Install Fly CLI:
    ```bash
-   pip install -r requirements.txt
-   ```
-3. Start the bot:
-   ```bash
-   python bot.py
+   curl -L https://fly.io/install.sh | sh
+   fly auth login
    ```
 
-## 📌 Notes
-- Admins can post links unless they are in the no-exempt list.
-- Anonymous admins are **not allowed** to post links.
+2. Launch app:
+   ```bash
+   fly launch --name telegram-link-block-bot --no-deploy
+   ```
+
+3. Set token:
+   ```bash
+   fly secrets set BOT_TOKEN="YOUR_BOT_TOKEN"
+   ```
+
+4. Deploy:
+   ```bash
+   fly deploy
+   ```
+
+## ✅ Notes
+- Uses long polling (no need for webhook).
+- Token securely loaded using environment variable.
