@@ -1,108 +1,102 @@
-import os
-import re
 import logging
-from telegram import Update
+import os
+from flask import Flask
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
-    Application, ApplicationBuilder, CommandHandler,
-    MessageHandler, ContextTypes, filters
+    ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters
 )
 
-# Enable logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# ✅ Your Bot Token
+TOKEN = os.getenv("BOT_TOKEN")  # Render এ environment variable এ set করবেন
 
-# Global no-exempt list per group
-group_no_exempt_admin_ids = {}
+# 📌 Logging
+logging.basicConfig(
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    level=logging.INFO
+)
 
-# Regex pattern to detect links
-link_pattern = re.compile(r"(http[s]?://|t\.me/)", re.IGNORECASE)
+# ✅ No-exempt list
+no_exempt_users = {}
 
-# Start command
+# 🟢 Flask App for Render keep-alive
+app_web = Flask(__name__)
+
+@app_web.route('/')
+def home():
+    return "Bot is Alive!"
+
+# /start command
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("✅ Bot is running and ready!\nYou can control me via private chat using group IDs.")
+    user = update.effective_user
+    mention = user.mention_html()
 
-# Add user to no-exempt list
-async def add_no_exempt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if len(context.args) < 2:
-        await update.message.reply_text("⚠️ Usage: /addnoexempt <group_id> <user_id>")
-        return
-    try:
-        group_id = int(context.args[0])
-        user_id = int(context.args[1])
-        group_no_exempt_admin_ids.setdefault(group_id, [])
-        if user_id not in group_no_exempt_admin_ids[group_id]:
-            group_no_exempt_admin_ids[group_id].append(user_id)
-            await update.message.reply_text(f"✅ User {user_id} added to no-exempt list for group {group_id}.")
-        else:
-            await update.message.reply_text("ℹ️ Already in the list.")
-    except ValueError:
-        await update.message.reply_text("❌ Invalid IDs.")
+    text = (
+        f"✫ 𝝜𝝚ⳐⳐ𝝤 {mention}  Ѡ𝝚Ⳑ𝗖𝝤𝝡𝝚 𝝩𝝤 ͢🦋⃟≛⃝ 𝕻𝖗𝖎𝖓𝖈𝖊𝖘𝖘≛⃝   𝝗𝝤𝝩 ✫\n\n"
+        "🔸𝗖Ⳑ𝝞𝗖𝝟 𝙰𝚍𝚍 𝚃𝚘 𝙶𝚛𝚘𝚞𝚙 & G𝝞V𝝚 𝝡𝝚 𝙰𝚍𝚖𝚒𝚗 𝝦𝝚Ɍ𝝡𝝞SS𝝞𝝤𝝢 𝝩𝝤 US𝝚"
+    )
+    keyboard = [
+        [InlineKeyboardButton("➕ Add To Group", url="https://t.me/princes_x_bot?startgroup=true")]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await update.message.reply_html(text, reply_markup=reply_markup)
 
-# Remove user from no-exempt list
-async def remove_no_exempt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if len(context.args) < 2:
-        await update.message.reply_text("⚠️ Usage: /removenoexempt <group_id> <user_id>")
-        return
-    try:
-        group_id = int(context.args[0])
-        user_id = int(context.args[1])
-        if group_id in group_no_exempt_admin_ids and user_id in group_no_exempt_admin_ids[group_id]:
-            group_no_exempt_admin_ids[group_id].remove(user_id)
-            await update.message.reply_text("✅ Removed from list.")
-        else:
-            await update.message.reply_text("ℹ️ Not found in the list.")
-    except ValueError:
-        await update.message.reply_text("❌ Invalid IDs.")
+# Add/Remove/List no-exempt
+async def add_noexempt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        return await update.message.reply_text("Usage: /addnoexempt <user_id>")
+    group_id = str(update.effective_chat.id)
+    user_id = context.args[0]
+    no_exempt_users.setdefault(group_id, set()).add(user_id)
+    await update.message.reply_text(f"✅ Added {user_id} to no-exempt list.")
 
-# List no-exempt users in group
-async def list_no_exempt(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if len(context.args) < 1:
-        await update.message.reply_text("⚠️ Usage: /listnoexempt <group_id>")
-        return
-    try:
-        group_id = int(context.args[0])
-        ids = group_no_exempt_admin_ids.get(group_id, [])
-        if not ids:
-            await update.message.reply_text("ℹ️ No users in the list.")
-        else:
-            await update.message.reply_text("📝 No-exempt list:\n" + "\n".join(str(uid) for uid in ids))
-    except ValueError:
-        await update.message.reply_text("❌ Invalid group ID.")
+async def remove_noexempt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        return await update.message.reply_text("Usage: /removenoexempt <user_id>")
+    group_id = str(update.effective_chat.id)
+    user_id = context.args[0]
+    if group_id in no_exempt_users and user_id in no_exempt_users[group_id]:
+        no_exempt_users[group_id].remove(user_id)
+        await update.message.reply_text(f"✅ Removed {user_id} from no-exempt list.")
+    else:
+        await update.message.reply_text("User not in list.")
 
-# Auto-delete links if not exempt
-async def delete_links(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    try:
-        chat = update.effective_chat
-        user = update.effective_user
-        admins = await chat.get_administrators()
-        admin_ids = [admin.user.id for admin in admins]
-        no_exempt_ids = group_no_exempt_admin_ids.get(chat.id, [])
+async def list_noexempt(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    group_id = str(update.effective_chat.id)
+    users = no_exempt_users.get(group_id, set())
+    if users:
+        await update.message.reply_text("📌 No-Exempt Users:\n" + "\n".join(users))
+    else:
+        await update.message.reply_text("⚠️ No users in no-exempt list.")
 
-        if user.id in admin_ids and user.id not in no_exempt_ids:
-            return
+# Message checker
+async def check_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    group_id = str(update.effective_chat.id)
+    user_id = str(update.effective_user.id)
+    text = update.message.text or ""
+    if "t.me/" in text or "telegram.me/" in text:
+        if user_id in no_exempt_users.get(group_id, set()):
+            try:
+                await update.message.delete()
+            except Exception as e:
+                logging.warning(f"Couldn't delete message: {e}")
 
-        if update.message and link_pattern.search(update.message.text or ""):
-            await update.message.delete()
-            await update.message.reply_text("❌ Links are not allowed!")
-    except Exception as e:
-        logger.warning(f"Error deleting link: {e}")
+# Start bot
+import threading
+import asyncio
 
-# Main bot entry
-TOKEN = os.environ.get("TOKEN")
-if not TOKEN:
-    raise ValueError("❌ TOKEN environment variable not set!")
+def run_bot():
+    app = ApplicationBuilder().token(TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("addnoexempt", add_noexempt))
+    app.add_handler(CommandHandler("removenoexempt", remove_noexempt))
+    app.add_handler(CommandHandler("listnoexempt", list_noexempt))
+    app.add_handler(MessageHandler(filters.TEXT & filters.ChatType.GROUPS, check_message))
+    print("✅ Bot is running and ready!")
+    app.run_polling()
 
-app = ApplicationBuilder().token(TOKEN).build()
-
-# Command handlers
-app.add_handler(CommandHandler("start", start))
-app.add_handler(CommandHandler("addnoexempt", add_no_exempt))
-app.add_handler(CommandHandler("removenoexempt", remove_no_exempt))
-app.add_handler(CommandHandler("listnoexempt", list_no_exempt))
-
-# Message handler for link deletion
-app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), delete_links))
-
+if __name__ == "__main__":
+    threading.Thread(target=run_bot).start()
+    app_web.run(host="0.0.0.0", port=10000)
 # Run the bot
 if __name__ == "__main__":
     app.run_polling()
